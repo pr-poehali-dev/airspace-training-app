@@ -1,16 +1,34 @@
 import { useState, useMemo, useCallback, Fragment } from 'react';
 import Icon from '@/components/ui/icon';
 
-const COLS = 12;
-const ROWS = 8;
-const COL_LABELS = Array.from({ length: COLS }, (_, i) => String(i + 1).padStart(2, '0'));
-const ROW_LABELS = Array.from({ length: ROWS }, (_, i) => String.fromCharCode(65 + i));
+const REF_IMG =
+  'https://cdn.poehali.dev/projects/4876679e-812b-492a-ac4d-15f2b0c8e66b/bucket/ed4816d4-f342-4cb3-8ce1-3f2a563793f5.jpg';
+
+const ZONE_COLS = 4;
+const ZONE_ROWS = 3;
+const ZONES = ZONE_COLS * ZONE_ROWS;
+
+const BQ_COLS = 5;
+const BQ_ROWS = 4;
+const BQ_PER_ZONE = BQ_COLS * BQ_ROWS;
+
+const SUB = 2;
+
+const zoneNumber = (zi: number) => zi + 1;
+const bqNumber = (bi: number) => (bi + 1) % 10;
+const subNumber = (sr: number, sc: number) => sr * SUB + sc + 1;
 
 type MarkType = 'friend' | 'enemy' | 'unknown';
+type IconName = 'Plane' | 'Rocket' | 'CircleHelp';
 
-interface Mark {
-  col: number;
-  row: number;
+interface Cell {
+  zone: number;
+  bq: number;
+  sr: number;
+  sc: number;
+}
+
+interface Mark extends Cell {
   type: MarkType;
 }
 
@@ -21,41 +39,42 @@ interface Task {
   targets: Mark[];
 }
 
-type IconName = 'Plane' | 'Rocket' | 'HelpCircle';
-
 const TYPE_META: Record<
   MarkType,
   { label: string; short: string; color: string; icon: IconName }
 > = {
   friend: { label: 'Свой', short: 'СВ', color: '145 63% 49%', icon: 'Plane' },
   enemy: { label: 'Противник', short: 'ПР', color: '0 78% 55%', icon: 'Rocket' },
-  unknown: { label: 'Неопознанный', short: '??', color: '38 92% 55%', icon: 'HelpCircle' },
+  unknown: { label: 'Неопознанный', short: '??', color: '38 92% 55%', icon: 'CircleHelp' },
 };
+
+const coordLabel = (c: Cell) =>
+  `${zoneNumber(c.zone)}-${bqNumber(c.bq)}-${subNumber(c.sr, c.sc)}`;
 
 const TASKS: Task[] = [
   {
     id: 1,
     title: 'Задание №1 — Одиночная цель',
-    brief: 'Противник, квадрат D-05. Нанесите отметку.',
-    targets: [{ col: 5, row: 3, type: 'enemy' }],
+    brief: 'Противник: зона 1, большой квадрат 5, средний квадрат 3.',
+    targets: [{ zone: 0, bq: 4, sr: 1, sc: 0, type: 'enemy' }],
   },
   {
     id: 2,
     title: 'Задание №2 — Пара целей',
-    brief: 'Свой борт B-02, противник F-09.',
+    brief: 'Свой: зона 2, БК 3, СК 1. Противник: зона 6, БК 8, СК 4.',
     targets: [
-      { col: 2, row: 1, type: 'friend' },
-      { col: 9, row: 5, type: 'enemy' },
+      { zone: 1, bq: 2, sr: 0, sc: 0, type: 'friend' },
+      { zone: 5, bq: 7, sr: 1, sc: 1, type: 'enemy' },
     ],
   },
   {
     id: 3,
     title: 'Задание №3 — Смешанная обстановка',
-    brief: 'Свой A-01, неопознанный C-06, противник G-11.',
+    brief: 'Свой: з3 БК2 СК2. Неопознанный: з5 БК6 СК1. Противник: з8 БК9 СК3.',
     targets: [
-      { col: 1, row: 0, type: 'friend' },
-      { col: 6, row: 2, type: 'unknown' },
-      { col: 11, row: 6, type: 'enemy' },
+      { zone: 2, bq: 1, sr: 0, sc: 1, type: 'friend' },
+      { zone: 4, bq: 5, sr: 0, sc: 0, type: 'unknown' },
+      { zone: 7, bq: 8, sr: 1, sc: 0, type: 'enemy' },
     ],
   },
 ];
@@ -68,7 +87,7 @@ interface CheckResult {
   accuracy: number;
 }
 
-const keyOf = (m: { col: number; row: number }) => `${m.col}-${m.row}`;
+const keyOf = (c: Cell) => `${c.zone}.${c.bq}.${c.sr}.${c.sc}`;
 
 const Index = () => {
   const [taskIndex, setTaskIndex] = useState(0);
@@ -76,6 +95,7 @@ const Index = () => {
   const [marks, setMarks] = useState<Mark[]>([]);
   const [result, setResult] = useState<CheckResult | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [showRef, setShowRef] = useState(false);
 
   const task = TASKS[taskIndex];
 
@@ -95,17 +115,15 @@ const Index = () => {
   }, [result]);
 
   const placeMark = useCallback(
-    (col: number, row: number) => {
+    (cell: Cell) => {
       setResult(null);
       setMarks((prev) => {
-        const existing = prev.find((m) => m.col === col && m.row === row);
+        const existing = prev.find((m) => keyOf(m) === keyOf(cell));
         if (existing) {
-          if (existing.type === tool) {
-            return prev.filter((m) => m !== existing);
-          }
+          if (existing.type === tool) return prev.filter((m) => m !== existing);
           return prev.map((m) => (m === existing ? { ...m, type: tool } : m));
         }
-        return [...prev, { col, row, type: tool }];
+        return [...prev, { ...cell, type: tool }];
       });
     },
     [tool],
@@ -155,11 +173,19 @@ const Index = () => {
               Планшет воздушной обстановки
             </h1>
           </div>
-          <div className="text-right font-mono text-xs text-muted-foreground">
-            <div>СЕТКА {COLS}×{ROWS}</div>
-            <div className="text-primary">СИСТЕМА · ГОТОВА</div>
-          </div>
+          <button
+            onClick={() => setShowRef((s) => !s)}
+            className="flex items-center gap-2 rounded-md border border-border bg-card/40 px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Icon name="Image" size={15} /> Схема-эталон
+          </button>
         </header>
+
+        {showRef && (
+          <div className="mb-6 animate-fade-in overflow-hidden rounded-lg border border-border">
+            <img src={REF_IMG} alt="Схема планшета ВО" className="w-full" />
+          </div>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
           {/* Grid area */}
@@ -167,80 +193,95 @@ const Index = () => {
             <div className="mb-3 rounded-md border border-border bg-card/60 px-4 py-3">
               <div className="text-xs uppercase tracking-widest text-accent">{task.title}</div>
               <div className="mt-1 text-sm text-foreground/80">{task.brief}</div>
+              <div className="mt-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+                координата: зона · большой квадрат · средний квадрат
+              </div>
             </div>
 
             <div className="relative overflow-x-auto rounded-lg border border-border bg-card/40 p-3">
               <div className="pointer-events-none absolute inset-x-0 top-0 h-8 scan-line bg-gradient-to-b from-primary/20 to-transparent" />
+              {/* Zones */}
               <div
-                className="grid select-none"
-                style={{ gridTemplateColumns: `28px repeat(${COLS}, minmax(0, 1fr))` }}
+                className="grid gap-1"
+                style={{ gridTemplateColumns: `repeat(${ZONE_COLS}, minmax(0, 1fr))` }}
               >
-                {/* corner */}
-                <div />
-                {COL_LABELS.map((c) => (
-                  <div key={c} className="pb-1 text-center text-[10px] text-muted-foreground">
-                    {c}
-                  </div>
-                ))}
-
-                {ROW_LABELS.map((rLabel, row) => (
-                  <Fragment key={`row-${rLabel}`}>
+                {Array.from({ length: ZONES }).map((_, zone) => (
+                  <div
+                    key={`zone-${zone}`}
+                    className="relative rounded-sm border-2 border-[hsl(var(--grid-line-major))] bg-background/30 p-1"
+                  >
+                    <span className="pointer-events-none absolute -top-0.5 left-1 z-10 font-display text-xs font-700 text-accent/90">
+                      {zoneNumber(zone)}
+                    </span>
+                    {/* Big squares */}
                     <div
-                      className="flex items-center justify-center pr-1 text-[10px] text-muted-foreground"
+                      className="grid gap-px"
+                      style={{ gridTemplateColumns: `repeat(${BQ_COLS}, minmax(0, 1fr))` }}
                     >
-                      {rLabel}
-                    </div>
-                    {COL_LABELS.map((_, col) => {
-                      const k = `${col + 1}-${row}`;
-                      const mark = marksByCell.get(k);
-                      const err = errorCells.get(k);
-                      const meta = mark ? TYPE_META[mark.type] : null;
-                      const showTarget = showAnswer && task.targets.some((t) => keyOf(t) === k);
-                      const targetMeta = showTarget
-                        ? TYPE_META[task.targets.find((t) => keyOf(t) === k)!.type]
-                        : null;
-                      return (
-                        <button
-                          key={k}
-                          onClick={() => placeMark(col + 1, row)}
-                          className="group relative aspect-square border-[0.5px] border-[hsl(var(--grid-line))] transition-colors hover:bg-primary/10"
-                          style={{
-                            outline: err
-                              ? `1.5px solid ${
-                                  err === 'missed'
-                                    ? 'hsl(38 92% 55%)'
-                                    : err === 'extra'
-                                      ? 'hsl(0 78% 55%)'
-                                      : 'hsl(0 78% 55%)'
-                                }`
-                              : undefined,
-                            outlineOffset: '-1.5px',
-                          }}
+                      {Array.from({ length: BQ_PER_ZONE }).map((_, bq) => (
+                        <div
+                          key={`bq-${zone}-${bq}`}
+                          className="relative border border-[hsl(var(--grid-line))]"
                         >
-                          {meta && (
-                            <span
-                              className="absolute inset-0 flex items-center justify-center animate-fade-in"
-                              style={{ color: `hsl(${meta.color})` }}
-                            >
-                              <span
-                                className="absolute h-3/4 w-3/4 rounded-full opacity-20 animate-ping-slow"
-                                style={{ background: `hsl(${meta.color})` }}
-                              />
-                              <Icon name={meta.icon} size={13} fallback="Circle" />
-                            </span>
-                          )}
-                          {!meta && targetMeta && (
-                            <span
-                              className="absolute inset-0 flex items-center justify-center opacity-50"
-                              style={{ color: `hsl(${targetMeta.color})` }}
-                            >
-                              <Icon name={targetMeta.icon} size={13} fallback="Circle" />
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </Fragment>
+                          <span className="pointer-events-none absolute left-[1px] top-[-1px] z-10 text-[7px] leading-none text-muted-foreground/70">
+                            {bqNumber(bq)}
+                          </span>
+                          {/* Middle squares 2x2 */}
+                          <div className="grid grid-cols-2">
+                            {Array.from({ length: SUB * SUB }).map((__, si) => {
+                              const sr = Math.floor(si / SUB);
+                              const sc = si % SUB;
+                              const cell: Cell = { zone, bq, sr, sc };
+                              const k = keyOf(cell);
+                              const mark = marksByCell.get(k);
+                              const err = errorCells.get(k);
+                              const meta = mark ? TYPE_META[mark.type] : null;
+                              const isTarget = task.targets.some((t) => keyOf(t) === k);
+                              const targetMeta =
+                                showAnswer && isTarget
+                                  ? TYPE_META[task.targets.find((t) => keyOf(t) === k)!.type]
+                                  : null;
+                              return (
+                                <button
+                                  key={k}
+                                  onClick={() => placeMark(cell)}
+                                  className="relative flex aspect-square items-center justify-center text-[7px] text-muted-foreground/40 transition-colors hover:bg-primary/15"
+                                  style={{
+                                    outline: err
+                                      ? `1px solid ${
+                                          err === 'missed'
+                                            ? 'hsl(38 92% 55%)'
+                                            : 'hsl(0 78% 55%)'
+                                        }`
+                                      : undefined,
+                                    outlineOffset: '-1px',
+                                  }}
+                                >
+                                  {!meta && !targetMeta && '+'}
+                                  {meta && (
+                                    <span
+                                      className="absolute inset-0 flex items-center justify-center animate-fade-in"
+                                      style={{ color: `hsl(${meta.color})` }}
+                                    >
+                                      <Icon name={meta.icon} size={9} fallback="Circle" />
+                                    </span>
+                                  )}
+                                  {!meta && targetMeta && (
+                                    <span
+                                      className="absolute inset-0 flex items-center justify-center opacity-50"
+                                      style={{ color: `hsl(${targetMeta.color})` }}
+                                    >
+                                      <Icon name={targetMeta.icon} size={9} fallback="Circle" />
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -318,8 +359,8 @@ const Index = () => {
               </div>
               {!result ? (
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  Выберите тип отметки, кликайте по клеткам сетки и нажмите «Проверить» для оценки
-                  точности.
+                  Выберите тип отметки, кликайте по средним квадратам сетки и нажмите «Проверить»
+                  для оценки точности нанесения.
                 </p>
               ) : (
                 <div className="animate-fade-in space-y-3">
@@ -347,7 +388,7 @@ const Index = () => {
                     </li>
                     {result.wrongType.length > 0 && (
                       <li className="flex items-center gap-2 text-destructive">
-                        <Icon name="AlertTriangle" size={14} /> Неверный тип:{' '}
+                        <Icon name="TriangleAlert" size={14} /> Неверный тип:{' '}
                         {result.wrongType.length}
                       </li>
                     )}
@@ -362,6 +403,18 @@ const Index = () => {
                       </li>
                     )}
                   </ul>
+                  {(result.missed.length > 0 || result.wrongType.length > 0) && (
+                    <div className="rounded-md border border-accent/30 bg-accent/5 p-2 text-[11px] leading-relaxed text-accent/90">
+                      {result.missed.slice(0, 3).map((m) => (
+                        <div key={keyOf(m)}>
+                          Пропущена цель ({TYPE_META[m.type].label}): {coordLabel(m)}
+                        </div>
+                      ))}
+                      {result.wrongType.slice(0, 3).map((m) => (
+                        <div key={keyOf(m)}>Неверный тип в квадрате {coordLabel(m)}</div>
+                      ))}
+                    </div>
+                  )}
                   {result.accuracy < 100 && (
                     <button
                       onClick={() => setShowAnswer((s) => !s)}
@@ -393,8 +446,12 @@ const Index = () => {
                   );
                 })}
                 <li className="flex items-center gap-2 pt-1 text-muted-foreground">
-                  <span className="inline-block h-3 w-3 rounded-sm outline outline-1 outline-accent" />
-                  контур — пропуск/ошибка
+                  <span className="inline-block h-3 w-3 rounded-sm border-2 border-[hsl(var(--grid-line-major))]" />
+                  зона (номер по углу)
+                </li>
+                <li className="flex items-center gap-2 text-muted-foreground">
+                  <span className="inline-block h-3 w-3 rounded-sm border border-[hsl(var(--grid-line))]" />
+                  большой квадрат 0-9
                 </li>
               </ul>
             </div>
