@@ -283,7 +283,7 @@ const Index = () => {
 
   // ── Dictation state ──
   const [dReportIdx, setDReportIdx] = useState(0);
-  const [dPhase, setDPhase] = useState<'read' | 'mark' | 'done'>('read');
+  const [dPhase, setDPhase] = useState<'mark' | 'done'>('mark');
   const [dMarks, setDMarks] = useState<Mark[]>([]);
   const [dResult, setDResult] = useState<CheckResult | null>(null);
   const [dShowAnswer, setDShowAnswer] = useState(false);
@@ -294,7 +294,14 @@ const Index = () => {
   const report = REPORTS[dReportIdx];
   const task = TASKS_TRAINER[taskIndex];
 
-  const goMarkPhase = () => { setDPhase('mark'); };
+  const dResetTo = (i: number) => {
+    setDReportIdx(i); setDPhase('mark'); setDMarks([]);
+    setDResult(null); setDShowAnswer(false); setDSector(null); setDBq(null);
+  };
+
+
+
+
 
   const dPlaceMark = useCallback((sq: number) => {
     if (dSector === null || dBq === null) return;
@@ -329,7 +336,7 @@ const Index = () => {
 
   const dNext = () => {
     setDReportIdx((i) => (i + 1) % REPORTS.length);
-    setDPhase('read');
+    setDPhase('mark');
     setDMarks([]);
     setDResult(null);
     setDShowAnswer(false);
@@ -426,9 +433,9 @@ const Index = () => {
 
         {/* ════ DICTATION TAB ════ */}
         {tab === 'dictation' && (
-          <div className="space-y-5">
-            {/* TOP ROW: донесение + расшифровка + формат */}
-            <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
+          <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
+            {/* ЛЕВАЯ КОЛОНКА: донесение + планшет */}
+            <div className="space-y-4">
               {/* Донесение */}
               <div className="relative overflow-hidden rounded-lg border-2 border-accent bg-card/60 p-5">
                 <div className="absolute inset-x-0 top-0 h-0.5 bg-accent opacity-60" />
@@ -438,7 +445,7 @@ const Index = () => {
                   </div>
                   <div className="flex gap-2">
                     {REPORTS.map((_, i) => (
-                      <button key={i} onClick={() => { setDReportIdx(i); setDPhase('read'); setDMarks([]); setDResult(null); setDShowAnswer(false); setDSector(null); setDBq(null); }}
+                      <button key={i} onClick={() => dResetTo(i)}
                         className={`h-2 w-6 rounded-full transition-colors ${i === dReportIdx ? 'bg-accent' : 'bg-border hover:bg-muted-foreground'}`} />
                     ))}
                   </div>
@@ -454,129 +461,114 @@ const Index = () => {
                 </div>
               </div>
 
-              {/* Правая колонка: расшифровка + формат + по улитке */}
-              <div className="space-y-3">
-                {/* Расшифровка координат */}
-                <div className="rounded-lg border border-accent/40 bg-accent/5 p-4">
-                  <div className="mb-2 text-[10px] uppercase tracking-widest text-accent">Расшифровка</div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Зона · Сектор</span>
-                      <span><span className="font-display text-base font-700 text-accent">{report.zoneRaw}</span><span className="ml-2 text-xs text-muted-foreground">→ з{report.zone} с{report.sector}</span></span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">БК · СК</span>
-                      <span><span className="font-display text-base font-700 text-accent">{report.bqsqRaw}</span><span className="ml-2 text-xs text-muted-foreground">→ бк{report.bq} ск{report.sq}</span></span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Тип цели</span>
-                      <span className="font-700 text-sm" style={{ color: `hsl(${TYPE_META[report.type].color})` }}>{TYPE_META[report.type].label}</span>
-                    </div>
-                  </div>
+              {/* Планшет */}
+              <div className="rounded-lg border border-border bg-card/40 p-4">
+                <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-widest text-accent">
+                  <Icon name="MapPin" size={13} /> Нанесение на планшет
                 </div>
-
-                {/* Формат */}
-                <div className="rounded-lg border border-border bg-card/40 p-3">
-                  <div className="mb-2 text-[10px] uppercase tracking-widest text-accent">Формат донесения</div>
-                  <div className="space-y-1 text-[10px] leading-relaxed">
-                    {[
-                      ['Время', 'ЧЧ ММ'],
-                      ['Пост', 'Номер РЛС'],
-                      ['Зона+Сектор', '«216» = з21 с6'],
-                      ['БК+СК', '«49» = бк4 ск9'],
-                      ['Высота', 'в ...ом (×100 м)'],
-                      ['Скорость', 'км/ч'],
-                      ['Пеленг', 'за ЧЧ ЧЧ'],
-                    ].map(([k, v]) => (
-                      <div key={k} className="flex gap-2">
-                        <span className="w-22 shrink-0 text-accent/70">{k}:</span>
-                        <span className="text-muted-foreground">{v}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* По улитке */}
-                <div className="rounded-lg border border-border bg-card/40 p-3">
-                  <div className="mb-2 text-[10px] uppercase tracking-widest text-accent">По улитке</div>
-                  <div className="grid grid-cols-3 gap-1">
-                    {SNAIL_NUMS.map((n) => (
-                      <div key={n} className="flex aspect-square items-center justify-center rounded border border-border font-display text-sm font-700 text-muted-foreground"
-                        style={{ gridColumn: snailPos(n).c + 1, gridRow: snailPos(n).r + 1 }}>{n}</div>
-                    ))}
-                  </div>
-                </div>
+                <PlanshGrid
+                  marks={dMarks} result={dResult} showAnswer={dShowAnswer}
+                  tool={dTool} onMark={dPlaceMark}
+                  selSector={dSector} selBq={dBq}
+                  setSelSector={setDSector} setSelBq={(b) => { setDBq(b); }}
+                  task={{ targets: [{ zone: report.zone, sector: report.sector, bq: report.bq, sq: report.sq, type: report.type }] }}
+                  zone={zone}
+                />
               </div>
             </div>
 
-            {/* SEPARATOR + action */}
-            {dPhase === 'read' && (
-              <button onClick={goMarkPhase}
-                className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-3 text-sm uppercase tracking-widest text-primary-foreground hover:opacity-90">
-                <Icon name="PenLine" size={16} /> Прочитал — нанести на планшет
-              </button>
-            )}
-
-            {/* BOTTOM: карта */}
-            {(dPhase === 'mark' || dPhase === 'done') && (
-              <div className="rounded-lg border border-border bg-card/40 p-4">
-                <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-widest text-accent">
-                  <Icon name="MapPin" size={13} /> Планшет — нанесение обстановки
-                </div>
-
-                <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
-                  <PlanshGrid
-                    marks={dMarks} result={dResult} showAnswer={dShowAnswer}
-                    tool={dTool} onMark={dPlaceMark}
-                    selSector={dSector} selBq={dBq}
-                    setSelSector={setDSector} setSelBq={(b) => { setDBq(b); }}
-                    task={{ targets: [{ zone: report.zone, sector: report.sector, bq: report.bq, sq: report.sq, type: report.type }] }}
-                    zone={zone}
-                  />
-
-                  <div className="space-y-3">
-                    {/* Тип отметки */}
-                    <div>
-                      <div className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Тип отметки</div>
-                      <div className="space-y-1.5">
-                        {(Object.keys(TYPE_META) as MarkType[]).map((t) => {
-                          const meta = TYPE_META[t];
-                          const active = dTool === t;
-                          return (
-                            <button key={t} onClick={() => setDTool(t)}
-                              className={`flex w-full items-center gap-2 rounded-md border px-3 py-2 text-xs uppercase tracking-wide transition-all ${active ? 'border-transparent' : 'border-border bg-card/40 text-muted-foreground hover:text-foreground'}`}
-                              style={active ? { background: `hsl(${meta.color})`, color: 'hsl(200 40% 6%)' } : undefined}>
-                              <Icon name={meta.icon} size={14} fallback="Circle" />
-                              {meta.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Оценка */}
-                    {dResult ? (
-                      <div>
-                        <div className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Оценка</div>
-                        <AccuracyBlock r={dResult} onShowAnswer={() => setDShowAnswer((s) => !s)} showAns={dShowAnswer} />
-                      </div>
-                    ) : (
-                      <button onClick={dCheck}
-                        className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-3 text-xs uppercase tracking-wide text-primary-foreground hover:opacity-90">
-                        <Icon name="ScanSearch" size={14} /> Проверить
-                      </button>
-                    )}
-
-                    {dPhase === 'done' && (
-                      <button onClick={dNext}
-                        className="flex w-full items-center justify-center gap-2 rounded-md border border-accent/50 py-2 text-xs uppercase tracking-wide text-accent hover:bg-accent/10">
-                        <Icon name="ChevronRight" size={14} /> Следующее донесение
-                      </button>
-                    )}
+            {/* ПРАВАЯ КОЛОНКА */}
+            <div className="space-y-3">
+              {/* Расшифровка координат */}
+              <div className="rounded-lg border border-accent/40 bg-accent/5 p-4">
+                <div className="mb-2 text-[10px] uppercase tracking-widest text-accent">Расшифровка</div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Зона · Сектор</span>
+                    <span><span className="font-display text-base font-700 text-accent">{report.zoneRaw}</span><span className="ml-2 text-xs text-muted-foreground">→ з{report.zone} с{report.sector}</span></span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">БК · СК</span>
+                    <span><span className="font-display text-base font-700 text-accent">{report.bqsqRaw}</span><span className="ml-2 text-xs text-muted-foreground">→ бк{report.bq} ск{report.sq}</span></span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Тип цели</span>
+                    <span className="font-700 text-sm" style={{ color: `hsl(${TYPE_META[report.type].color})` }}>{TYPE_META[report.type].label}</span>
                   </div>
                 </div>
               </div>
-            )}
+
+              {/* Тип отметки */}
+              <div className="rounded-lg border border-border bg-card/40 p-3">
+                <div className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Тип отметки</div>
+                <div className="space-y-1.5">
+                  {(Object.keys(TYPE_META) as MarkType[]).map((t) => {
+                    const meta = TYPE_META[t];
+                    const active = dTool === t;
+                    return (
+                      <button key={t} onClick={() => setDTool(t)}
+                        className={`flex w-full items-center gap-2 rounded-md border px-3 py-2 text-xs uppercase tracking-wide transition-all ${active ? 'border-transparent' : 'border-border bg-card/40 text-muted-foreground hover:text-foreground'}`}
+                        style={active ? { background: `hsl(${meta.color})`, color: 'hsl(200 40% 6%)' } : undefined}>
+                        <Icon name={meta.icon} size={14} fallback="Circle" />
+                        {meta.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* По улитке */}
+              <div className="rounded-lg border border-border bg-card/40 p-3">
+                <div className="mb-2 text-[10px] uppercase tracking-widest text-accent">По улитке</div>
+                <div className="grid grid-cols-3 gap-1">
+                  {SNAIL_NUMS.map((n) => (
+                    <div key={n} className="flex aspect-square items-center justify-center rounded border border-border font-display text-sm font-700 text-muted-foreground"
+                      style={{ gridColumn: snailPos(n).c + 1, gridRow: snailPos(n).r + 1 }}>{n}</div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Проверить / Оценка / Следующее */}
+              {dResult ? (
+                <div className="rounded-lg border border-border bg-card/40 p-3">
+                  <div className="mb-2 text-[10px] uppercase tracking-widest text-accent">Оценка</div>
+                  <AccuracyBlock r={dResult} onShowAnswer={() => setDShowAnswer((s) => !s)} showAns={dShowAnswer} />
+                </div>
+              ) : (
+                <button onClick={dCheck}
+                  className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-3 text-xs uppercase tracking-wide text-primary-foreground hover:opacity-90">
+                  <Icon name="ScanSearch" size={14} /> Проверить
+                </button>
+              )}
+
+              {dPhase === 'done' && (
+                <button onClick={dNext}
+                  className="flex w-full items-center justify-center gap-2 rounded-md border border-accent/50 py-2 text-xs uppercase tracking-wide text-accent hover:bg-accent/10">
+                  <Icon name="ChevronRight" size={14} /> Следующее донесение
+                </button>
+              )}
+
+              {/* Формат */}
+              <div className="rounded-lg border border-border bg-card/40 p-3">
+                <div className="mb-2 text-[10px] uppercase tracking-widest text-accent">Формат донесения</div>
+                <div className="space-y-1 text-[10px] leading-relaxed">
+                  {[
+                    ['Время', 'ЧЧ ММ'],
+                    ['Пост', 'Номер РЛС'],
+                    ['Зона+Сектор', '«216» = з21 с6'],
+                    ['БК+СК', '«49» = бк4 ск9'],
+                    ['Высота', 'в ...ом (×100 м)'],
+                    ['Скорость', 'км/ч'],
+                    ['Пеленг', 'за ЧЧ ЧЧ'],
+                  ].map(([k, v]) => (
+                    <div key={k} className="flex gap-2">
+                      <span className="w-22 shrink-0 text-accent/70">{k}:</span>
+                      <span className="text-muted-foreground">{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
